@@ -1,0 +1,2 @@
+# USBI3C basic class device
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTRS{bDeviceClass}=="3C", MODE="0664", GROUP="plugdev"

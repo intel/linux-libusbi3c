@@ -1,0 +1,19 @@
+if(NOT EXISTS "@CMAKE_BINARY_DIR@/install_manifest.txt")
+  message(FATAL_ERROR "@CMAKE_BINARY_DIR@/install_manifest.txt not found")
+endif()
+
+file(STRINGS "@CMAKE_BINARY_DIR@/install_manifest.txt" files)
+foreach(file ${files})
+  if(EXISTS "$ENV{DESTDIR}${file}")
+    message(STATUS "Uninstall $ENV{DESTDIR}${file}")
+    exec_program(
+      "@CMAKE_COMMAND@" ARGS "-E rm \"$ENV{DESTDIR}${file}\""
+      OUTPUT_VARIABLE out
+      RETURN_VALUE ret
+      )
+    if(NOT "${ret}" STREQUAL 0)
+      message(FATAL_ERROR "${out}")
+    endif()
+  endif()
+endforeach()
+
