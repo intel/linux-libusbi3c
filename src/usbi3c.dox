@@ -1,0 +1,699 @@
+
+
+/***************************************************************************/
+/* PAGES */
+/***************************************************************************/
+
+/***************************************************************************/
+/**
+ * @mainpage @lib_name API Documentation
+ *
+ * @section intro Introduction
+ *
+ * @lib_name is an open source user-space library to communicate with I3C devices
+ * behind a USB->I3C host controller adapter.
+ *
+ * No knowledge of how to operate USB devices from a software standpoint is
+ * required to use the library. The documentation however does assumes knowledge of the
+ * <a href="https://www.usb.org/document-library/usb-i3c-device-class-specification">
+ * USB I3C device class</a> which exposes the functionality of an I3C controller
+ * and the connected target devices on the I3C bus over the USB interface to a
+ * host system. Users are also expected to be familiar with the I3C interface protocols
+ * and commands.
+ *
+ * The @lib_name library provides an interface to expose and configure the USB-I3C device
+ * (also known as I3C Function) within a USB device to allow interaction between host
+ * software and the I3C device, to drive transactions on the I3C bus to/from target
+ * devices.
+ *
+ * The USB-I3C device acts as an intermediary between the host and the other
+ * I3C devices on an I3C bus. The host communicates with the USB-I3C device using
+ * the USB protocol (through control, bulk, and interrupt transfers), to exercise
+ * I3C commands, read and write transfers and to obtain responses from the I3C
+ * device.
+ *
+ *
+ * @section operational_overview Operational Overview
+ *
+ * The host sends requests and responses to the USB-I3C device in USB format,
+ * and the USB-I3C device translates these requests and submits the appropriate I3C
+ * commands to its I3C device. Based on the characteristics and capabilities of the
+ * I3C bus and its target devices, the I3C device may decide if a command or transfer
+ * can be executed. Similarly, the USB-I3C device receives responses from its I3C device
+ * and translates them to USB format so that these can be transferred to the host.
+ *
+ *
+ * @section getting_started Getting Started
+ *
+ * To start using @lib_name, please refer to the following pages:
+ * - @subpage install_page
+ * - @subpage library_setup_page
+ * - @subpage bus_configuration_page
+ * - @subpage bus_info_page
+ *
+ * To send data or commands to/from the USB-I3C device refer to the @subpage command_execution_page
+ * page:
+ * - @ref write_data
+ * - @ref read_data
+ * - @ref send_ccc
+ *
+ * To reset one or more I3C devices:
+ * - @ref reset_pattern
+ *
+ * For error handling refer to the following page:
+ * - @subpage error_handling_page
+ *
+ * @section api Application Programming Interface (API)
+ *
+ * See the @subpage api_page page for a complete list of the @lib_name
+ * functions.
+ *
+ ***************************************************************************/
+
+/**
+ * @page install_page Library Installation
+ *
+ * @section dependencies Build dependencies
+ *
+ * The following dependencies need to be installed to build the executable:
+ * - cmake
+ * - libusb
+ * - fuse3 (only if building the binary)
+ * - doxygen (only if building the documentation)
+ * - cmocka (only if building the tests)
+ *
+ *
+ * @section build Building the library
+ *
+ * Clone the library:
+ * @code $ git clone https://github.com/intel-innersource/libraries.debugging.i3c.libusbi3c.git @endcode
+ *
+ * Create a build directory:
+ * @code $ mkdir build @endcode
+ *
+ * Configure the build:
+ * @code $ cmake -DCMAKE_BUILD_TYPE=Release -B build/ @endcode
+ *
+ * The libusb binary is built by default, but this behavior can be disabled with:
+ * @code $ cmake -DBUILD_BIN=OFF -DCMAKE_BUILD_TYPE=Release -B build/ @endcode
+ *
+ * Optionally, you can also enable building the library's documentation and code samples:
+ * @code $ cmake -DDOCUMENTATION=ON -DBUILD_SAMPLES=ON -DCMAKE_BUILD_TYPE=Release -B build/ @endcode
+ *
+ * Build the binary:
+ * @code $ cmake --build build/ @endcode
+ *
+ *
+ * @section install Installing the binaries
+ *
+ * To install the library in the default location (/usr/local) you can run the <b>install</b> target:
+ * @code $ cmake --build build/ --target install @endcode
+ *
+ * You can install the library in a different location by specifying it using the
+ * <i><b>CMAKE_INSTALL_PREFIX</b></i> variable.
+ *
+ * Likewise, uninstalling the binaries from the system can be done using the <b>uninstall</b>
+ * target:
+ * @code cmake --build build/ --target uninstall @endcode
+ *
+ * @note Only uninstall the library using cmake if the library was also installed
+ * using cmake. Also make sure the <i><b>CMAKE_INSTALL_PREFIX</b></i> variable
+ * still holds the correct installation path before running the uninstall command.
+ *
+ ***************************************************************************/
+
+/**
+ * @page library_setup_page Library Setup
+ *
+ * @section usbi3c_init @lib_name Initialization
+ *
+ * Initialization must be performed before using any @lib_name functionality,
+ * and similarly you must not call any @lib_name functions after deinitialization.
+ *
+ * To initialize and deinitialize @lib_name the following functions are used:
+ *
+ * usbi3c_init()  
+ * usbi3c_deinit()
+ *
+ * @section device_selection USB-I3C device selection
+ *
+ * The USB-I3C device (I3C Function) is a USB device, and as such, its detection
+ * once connected to the USB host occurs through the USB port hardware, and its
+ * enumeration occurs through standard USB requests.
+ *
+ * To list the USB-I3C devices, you can use the <i><b>lsusb</b></i> command:
+ * @code $ lsusb @endcode
+ *
+ * To use the library it is necessary to choose what device it will work with first,
+ * you can get the list of all USB I3C devices that match a specific vendor and product
+ * IDs using the following function:
+ *
+ * usbi3c_get_devices()
+ *
+ * @section device_init USB-I3C device initialization
+ *
+ * The I3C device inside such a USB device could support one of the following
+ * three roles:
+ * - I3C Controller role (Primary I3C Controller)
+ * - I3C Target device role
+ * - I3C Target device capable of Secondary Controller role
+ *
+ * The USB-I3C device then needs to be initialized. During the initialization
+ * process, the I3C device informs the USB host of its role, and further configuration
+ * is done depending on the device capabilities. For example, if the role of the
+ * USB-I3C device is "I3C Primary Controller", during the initialization process,
+ * the I3C bus is also initialized, I3C target devices in the bus are discovered
+ * (if required), configured, and have addresses assigned to them, and the target
+ * device table is built.
+ *
+ * To initialize the device the following
+ * function should be used:
+ *
+ * usbi3c_initialize_device()
+ *
+ * @subsection setup_example_1 Code examples:
+ * @code
+ * struct usbi3c_context *ctx = NULL;
+ * int ret = -1;
+ *
+ * // vendor and product ID of the USB-I3C
+ * const int VENDOR_ID = 123;
+ * const int PRODUCT_ID = 321;
+ * struct usbi3c_device **devices = NULL;
+ *
+ * ctx = usbi3c_init();
+ * if (ctx == NULL) {
+ * 	return -1;
+ * }
+ *
+ * ret = usbi3c_get_devices(ctx, VENDOR_ID, PRODUCT_ID, &devices);
+ * if (ret < 0) {
+ * 	usbi3c_deinit(&ctx);
+ * 	return -1;
+ * }
+ *
+ * // 0 devices found
+ * if (ret == 0) {
+ * 	usbi3c_free_devices(&devices);
+ * 	usbi3c_deinit(&ctx);
+ * 	return 0;
+ * }
+ *
+ * ret = usbi3c_initialize_device(devices[0]);
+ * if (ret < 0) {
+ * 	usbi3c_free_devices(&devices);
+ * 	usbi3c_deinit(&ctx);
+ * 	return -1;
+ * }
+ *
+ * // work with the USB-I3C device
+ *
+ * usbi3c_free_devices(&devices);
+ * usbi3c_deinit(&ctx);
+ * @endcode
+ *
+ * @section adding_devices_manually Adding Devices Manually
+ *
+ * When initializing the I3C controller, and I3C bus, one condition is that the I3C controller must have knowledge
+ * of at least the devices on the bus that use static addresses (all I2C devices, and optionally some I3C devices).
+ * Therefore, if the I3C controller doesn't have the static information about the devices on the bus, the user must
+ * provide it by adding those devices to the target device table manually. This can be accomplished using the following function:
+ * - usbi3c_add_device_to_table()
+ ***************************************************************************/
+
+/**
+ * @page bus_configuration_page Configuring the I3C bus
+ *
+ * @section usb_config USB Configuration
+ *
+ * All the transactions sent to the I3C function are sent/received via the USB protocol.
+ * On occasion, an unexpected situation may lead a USB transaction to hang, to avoid applications
+ * using @lib_name to hang if this situation occurs, a timeout is defined for every USB transaction,
+ * if the transaction is not completed within the timeout period, it is cancelled. User can modify
+ * the USB transaction timeout with the help of this function:
+ * - usbi3c_set_timeout()
+ *
+ * @section bus_config I3C Bus Configuration
+ *
+ * Once the I3C bus has been initialized, users should proceed to configure the bus
+ * according to their needs.
+ *
+ * The following features can be enabled or disabled on the I3C bus:
+ * - Hot-Join requests from any I3C Target device on the I3C bus.
+ *   - usbi3c_enable_hot_join()
+ *   - usbi3c_disable_hot_join()
+ * - The handoff of the I3C Controller role to another I3C Controller-capable device
+ * (i.e., an I3C Secondary Controller) on the I3C bus.
+ *   - usbi3c_enable_i3c_controller_role_handoff()
+ *   - usbi3c_disable_i3c_controller_role_handoff()
+ * - All regular In-Band Interrupts (IBI) from I3C Target devices on the I3C bus.
+ *   - usbi3c_enable_regular_ibi()
+ *   - usbi3c_disable_regular_ibi()
+ * - USB remote wake from regular Hot-Join on the I3C bus.
+ *   - usbi3c_enable_hot_join_wake()
+ *   - usbi3c_disable_hot_join_wake()
+ * - USB remote wake from an I3C Controller role request on the I3C Bus.
+ *   - usbi3c_enable_i3c_controller_role_request_wake()
+ *   - usbi3c_disable_i3c_controller_role_request_wake()
+ * - USB remote wake from regular IBI on the I3C Bus.
+ *   - usbi3c_enable_regular_ibi_wake()
+ *   - usbi3c_disable_regular_ibi_wake()
+ * - The I3C bus can be disabled.
+ *   - usbi3c_disable_i3c_bus()
+ *
+ * @lib_name allow users to register a callback function that will be executed whenever certain
+ * events are triggered in the I3C bus. This allow users to react to those events programmatically
+ * in a way that make sense for their application. These are the functions that are used to
+ * register the callback functions and the even they respond to:
+ * - usbi3c_on_hotjoin(); triggered every-time the I3C controller receives a hot-join request from an I3C device.
+ * - usbi3c_on_ibi(); triggered every-time the I3C controller receives an IBI from a target device.
+ * - usbi3c_on_controller_event(); triggered every-time the I3C function receives an event from the active
+ * I3C controller.
+ *
+ * @note The usbi3c_on_controller_event() function can only be used when the I3C device is in a target device role,
+ * and not in the I3C active controller role.
+ *
+ * @section target_device_config Target Device Configuration
+ *
+ * In addition to configuring the I3C bus, individual target devices can also be configured.
+ *
+ * @subsection target_device_config_event Event Configuration
+ *
+ * Users can configure the I3C controller to allow or reject certain requests from specific target devices
+ * by using usbi3c_set_target_device_config():
+ * - Configure if the controller accepts controller role requests from this target device
+ * - Configure if the controller accepts interrupts (IBIs) from this target device
+ * - Enable or disable time-stamping of IBIs from the target Device
+ *
+ * @subsection target_device_config_payload Payload Size Configuration
+ *
+ * Users can also configure the maximum IBI payload size that an I3C Device is
+ * allowed to send for an IBI to the I3C Controller with the following function:
+ * - usbi3c_set_target_device_max_ibi_payload()
+ *
+ * @subsection target_device_config_address Address Configuration
+ *
+ * When the I3C bus is configured, the I3C controller automatically assigns dynamic
+ * addresses to the I3C devices that do not have a static address. This address however,
+ * can be changed by users by using the following function:
+ * - usbi3c_change_i3c_device_address()
+ *
+ * @note Static addresses cannot be changed.
+ *
+ * @section command_config Command And Data Transfers Configuration
+ *
+ * @lib_name also provides a set of functions to configure how commands and data are transferred
+ * between the user (host) and the I3C function, and between the I3C devices and the I3C controller.
+ *
+ * Users can set the transfer mode and transfer rate to be used for the I3C controller - I3C device communication
+ * using this function:
+ * - usbi3c_set_i3c_mode()
+ *
+ * In occasions, an I3C target device may stall while executing a command sent by the I3C controller,
+ * when this occurs, @lib_name will automatically request the I3C device to re-attempt the command execution
+ * up to a set number of times. If the device keeps stalling while attempting the command execution, and the
+ * maximum number of re-attempts is reached, the command(s) will be aborted. Users can change the maximum
+ * number of re-attempts with the following function:
+ * - usbi3c_set_request_reattempt_max()
+ *
+ ***************************************************************************/
+
+/**
+ * @page bus_info_page Bus Information
+ *
+ * @section bus_info_bus Bus Information
+ *
+ * Some information can be collected regarding the I3C bus, and the target devices on it.
+ *
+ * To get the list of devices on the bus and the address assigned to each device, use the following function:
+ * - usbi3c_get_address_list()
+ *
+ * @section bus_info_i3c_func I3C Function Information
+ *
+ * It is also possible to collect information about the I3C Function and its associated I3C device. For
+ * example to get the device capability, its address and current role, etc.
+ * - usbi3c_device_is_active_controller()
+ * - usbi3c_get_device_role()
+ * - usbi3c_get_device_address()
+ *
+ * @section bus_info_target_device Target Device Information
+ *
+ * Users can also get information about a specific target device, like its device characteristic register
+ * (DCR), its bus characteristic register (BCR), or the device type (I2C or I3C device), using the following
+ * functions:
+ * - usbi3c_get_target_BCR()
+ * - usbi3c_get_target_DCR()
+ * - usbi3c_get_target_type()
+ *
+ ***************************************************************************/
+
+/**
+ * @page error_handling_page Error Handling and Recovery
+ *
+ * When I3C target devices encounter errors on the I3C bus, the user can send a request
+ * to force all I3C Target devices to exit HDR Mode, this causes the I3C Target devices
+ * to recover from such an error condition. To send the request the following function can be
+ * used:
+ * - by using usbi3c_exit_hdr_mode_for_recovery()
+ *
+ * @note Users should not use this request while there are outstanding transfer commands
+ * sent; instead, users should wait until it receives responses to such transfer commands
+ * and the I3C bus is quiesced.
+ *
+ * @note Users should not use this request to send the HDR Exit Pattern after executing any
+ * HDR transfer commands sent in a Bulk request, as the I3C Device shall handle this
+ * automatically.
+ *
+ * If an error occurs during the execution of any @lib_name function, the error can be retrieved
+ * by the following function:
+ * -  usbi3c_get_usb_error()
+ *
+ * Users can also register a callback function that would be executed whenever an error in the
+ * I3C bus is encountered. To register a callback the following function can be used:
+ * - usbi3c_on_bus_error()
+ *
+ * @note The callback registered with usbi3c_on_bus_error() will only be triggered with errors in the
+ * I3C bus, not with errors in the USB bus.
+ *
+ ***************************************************************************/
+
+/**
+ * @page command_execution_page Interacting with the USB-I3C Device
+ *
+ * @section io_overview I/O Overview
+ *
+ * You can interact with the I3C device within the USB-I3C device primarily in
+ * these ways:
+ * - You can write data to the I3C device using a write command
+ * - You can read data from the I3C device using a read command
+ * - You can send MIPI-defined commands or CCCs (Common Command Codes) to the I3C device
+ * - Alternatively you can send <b><i>vendor specific requests</i></b> to the device if it supports them
+ *
+ * A data transfer can include only one command, or it can have multiple commands,
+ * in the same transfer. All the commands within the same transfer are dependent in
+ * its previous command, so if at some point one command from the queue fails execution,
+ * it will cause execution of the following commands to be aborted. If you want the
+ * commands to be independent from each other, they will have to be sent in separate
+ * transfers. Optionally, the execution of all commands in one transfer can depend
+ * on the correct execution of commands of a previous transfer.
+ *
+ * Data transfers can be synchronous or asynchronous. If the transfer is synchronous,
+ * once the commands have been executed, for every command pushed to the queue, you
+ * will receive a usbi3c_response data structure. This data structure contains the
+ * execution status of the command, and its data (if applicable).
+ * If the transfer is asynchronous, you are required to provide a callback function for
+ * each of the commands that are added to the queue, these callbacks will be executed
+ * once the related command is processed.
+ *
+ * @section command_queue Command Queue
+ *
+ * @lib_name exposes a queue to define all the commands that are to be executed
+ * within one transaction. The commands in the queue will be executed in the I3C
+ * device in the same order they are pushed into the queue.
+ *
+ * To work with the command queue, the following functions are used:
+ *
+ * usbi3c_enqueue_command()  
+ * usbi3c_enqueue_ccc()  
+ * usbi3c_enqueue_ccc_with_defining_byte()  
+ * usbi3c_enqueue_target_reset_pattern()
+ *
+ * @section transfer_types Synchronous and Asynchronous Transfers
+ *
+ * Once the command queue has been filled with one or more commands, it can be
+ * submitted to the USB-I3C device so the commands in it can be executed by the
+ * I3C device. The execution of these commands could potentially take some time to
+ * complete, so in order to deal with this, @lib_name provides two different functions
+ * for submitting the command queue to be executed. One synchronous, and one
+ * asynchronous.
+ *
+ * The synchronous function is blocking and will hold the control of the program
+ * until all the commands in the queue finish executing. To submit the command queue
+ * synchronously this function is used:
+ *
+ * usbi3c_send_commands()
+ *
+ * The asynchronous function is non-blocking, the control is returned back to the
+ * program as soon as the command queue is submitted to the I3C device. This method
+ * requires a callback to be defined for each of the commands entered into the queue.
+ * These callbacks will be executed as each one of the command they relate to completes
+ * execution. To submit the commands in an asynchronous way this function is used:
+ *
+ * usbi3c_submit_commands()
+ *
+ * @note If callbacks were not included when enqueuing the commands they can only be
+ * transferred using the usbi3c_send_commands() function.
+ *
+ * @section write_data Write Data into an I3C Device
+ *
+ * This is an example of how data could be written to an I3C device in the I3C bus:
+ * @code
+ * struct usbi3c_context *ctx = NULL;
+ * struct usbi3c_device **devices = NULL;
+ * unsigned char data[] = "Data to be written";
+ * int data_size = sizeof(data);
+ * unsigned char *callback_data = NULL;
+ * int ret = -1;
+ *
+ * ctx = usbi3c_init();
+ * usbi3c_get_devices(ctx, VENDOR_ID, PRODUCT_ID, &devices);
+ * usbi3c_initialize_device(devices[0]);
+ *
+ * // send a WRITE command asynchronously (don't wait for a response)
+ * usbi3c_enqueue_command(devices[0], DEVICE_ADDRESS, USBI3C_WRITE, USBI3C_TERMINATE_ON_ANY_ERROR, data_size, data, command_executed_callback, callback_data);
+ * ret = usbi3c_submit_commands(devices[0], USBI3C_NOT_DEPENDENT_ON_PREVIOUS);
+ * if (ret < 0) {
+ * 	return -1;
+ * }
+ * @endcode
+ *
+ * @section read_data Read Data from an I3C Device
+ *
+ * This is an example of how data could be read from an I3C device in the I3C bus:
+ * @code
+ * struct usbi3c_devices **devices = NULL;
+ * struct usbi3c_context *ctx = NULL;
+ * struct list *responses = NULL;
+ * struct usbi3c_response *response = NULL;
+ * char read_data[20];
+ *
+ * ctx = usbi3c_init();
+ * usbi3c_get_devices(ctx, VENDOR_ID, PRODUCT_ID, &devices);
+ * usbi3c_initialize_device(devices[0]);
+ *
+ * // send a READ command synchronously to read 20 bytes from the I3C device (wait for a response)
+ * usbi3c_enqueue_command(devices[0], DEVICE_ADDRESS, USBI3C_READ, USBI3C_TERMINATE_ON_ANY_ERROR, 20, NULL, NULL, NULL);
+ * responses = usbi3c_send_commands(devices[0], USBI3C_NOT_DEPENDENT_ON_PREVIOUS, TIMEOUT);
+ *
+ * response = (struct usbi3c_response *)responses->data;
+ * if (response->error_status == USBI3C_SUCCEEDED && response->attempted == USBI3C_COMMAND_ATTEMPTED) {
+ * 	memcpy(read_data, response->data, 20);
+ * }
+ * usbi3c_free_responses(&responses);
+ * @endcode
+ *
+ * @section send_ccc Send MIPI-defined I3C commands to an I3C Device
+ *
+ * Common Command Codes (CCCs) are I3C's standardized command set. There are
+ * two main kinds of CCC:
+ * - Broadcast CCCs, which are addressed to all I3C target devices on the I3C
+ * bus (these use the USBI3C_BROADCAST_ADDRESS address and are USBI3C_WRITE only).
+ * - Direct CCCs, which are typically directed to a single, specifically-addressed
+ * target on the I3C bus (can be USBI3C_READ, USBI3C_WRITE).
+ *
+ * The user is responsible to select the correct Read/Write mode according
+ * to the CCC being sent.
+ *
+ * This is an example of how a series of CCCs could be sent to an I3C device in the I3C bus:
+ * @code
+ * struct usbi3c_device **devices = NULL;
+ * struct usbi3c_context *ctx = NULL;
+ * struct list *responses = NULL;
+ * struct list *response_node = NULL;
+ *
+ * ctx = usbi3c_init();
+ * usbi3c_get_devices(ctx, VENDOR_ID, PRODUCT_ID, &devices);
+ * usbi3c_initialize_device(devices[0]);
+ *
+ * // CCCs
+ * const int DISEC = 0x01;	// Disable Events Command
+ * const int GETSTATUS = 0x90;	// Get Device Status
+ *
+ * // Broadcast a Disable Events Command
+ * usbi3c_enqueue_ccc(devices[0], USBI3C_BROADCAST_ADDRESS, USBI3C_WRITE, USBI3C_TERMINATE_ON_ANY_ERROR, DISEC, 0, NULL, NULL, NULL);
+ * // Send the Get Device Status command to the device with address 0x5 (the CCC should return 2 bytes of data)
+ * usbi3c_enqueue_ccc(devices[0], 0x05, USBI3C_READ, USBI3C_TERMINATE_ON_ANY_ERROR, GETSTATUS, 2, NULL, NULL, NULL);
+ * // send both commands and wait for a response
+ * responses = usbi3c_send_commands(devices[0], USBI3C_NOT_DEPENDENT_ON_PREVIOUS, TIMEOUT);
+ *
+ * for (response_node = responses; response_node; response_node = response_node->next) {
+ * 	struct usbi3c_response *response = (struct usbi3c_response *)response_node->data;
+ * 	// do something with the response
+ * }
+ *
+ * usbi3c_free_responses(&responses);
+ * @endcode
+ *
+ * @section reset_pattern Sending a reset action
+ *
+ * The <b><i>Target Reset Pattern</i></b> is used to trigger the default or configured
+ * reset action. A reset action is configured using the <b><i>RSTACT</i></b> CCC.
+ *
+ * @note Reset patterns can only be submitted along with RSTACT CCCs or other reset
+ * patterns in the same transaction. Trying to add a reset pattern into a queue that
+ * already has other commands will result in an error.
+ *
+ * This is an example of how a specific reset action could be sent to the I3C bus:
+ * @code
+ * struct usbi3c_device **devices = NULL;
+ * struct usbi3c_context *ctx = NULL;
+ * struct list *responses = NULL;
+ *
+ * ctx = usbi3c_init();
+ * usbi3c_get_devices(ctx, VENDOR_ID, PRODUCT_ID, &devices);
+ * usbi3c_initialize_device(devices[0]);
+ *
+ * // CCC
+ * const int RSTACT = 0x2A;	// Target Reset Action Broadcast
+ * // CCC Defining Byte
+ * const int ACTION = 0x02;	// Reset the Whole Target
+ *
+ * // Configure a reset action in the target devices
+ * usbi3c_enqueue_ccc_with_defining_byte(devices[0], USBI3C_BROADCAST_ADDRESS, USBI3C_WRITE, USBI3C_TERMINATE_ON_ANY_ERROR, RSTACT, ACTION, 0, NULL, NULL, NULL);
+ * usbi3c_enqueue_target_reset_pattern(devices[0], NULL, NULL);
+ * // Execute the reset action in the target devices
+ * responses = usbi3c_send_commands(devices[0], USBI3C_NOT_DEPENDENT_ON_PREVIOUS, TIMEOUT);
+ * @endcode
+ ***************************************************************************/
+
+/**
+ * @page api_page Application Programming Interface
+ *
+ * This is the complete list of @lib_name functions and structures in
+ * alphabetical order.
+ *
+ * @section Functions
+ * - usbi3c_add_device_to_table()
+ * - usbi3c_change_i3c_device_address()
+ * - usbi3c_deinit()
+ * - usbi3c_device_is_active_controller()
+ * - usbi3c_disable_hot_join()
+ * - usbi3c_disable_hot_join_wake()
+ * - usbi3c_disable_i3c_bus()
+ * - usbi3c_disable_i3c_controller_role_handoff()
+ * - usbi3c_disable_i3c_controller_role_request_wake()
+ * - usbi3c_disable_regular_ibi()
+ * - usbi3c_disable_regular_ibi_wake()
+ * - usbi3c_enable_hot_join()
+ * - usbi3c_enable_hot_join_wake()
+ * - usbi3c_enable_i3c_controller_role_handoff()
+ * - usbi3c_enable_i3c_controller_role_request_wake()
+ * - usbi3c_enable_regular_ibi()
+ * - usbi3c_enable_regular_ibi_wake()
+ * - usbi3c_enqueue_ccc()
+ * - usbi3c_enqueue_ccc_with_defining_byte()
+ * - usbi3c_enqueue_command()
+ * - usbi3c_enqueue_target_reset_pattern()
+ * - usbi3c_exit_hdr_mode_for_recovery()
+ * - usbi3c_free_responses()
+ * - usbi3c_get_address_list()
+ * - usbi3c_get_devices()
+ * - usbi3c_get_device_role()
+ * - usbi3c_get_i3c_mode()
+ * - usbi3c_get_request_reattempt_max()
+ * - usbi3c_get_target_BCR()
+ * - usbi3c_get_target_DCR()
+ * - usbi3c_get_target_device_config()
+ * - usbi3c_get_target_device_max_ibi_payload()
+ * - usbi3c_get_target_type()
+ * - usbi3c_get_timeout()
+ * - usbi3c_get_usb_error()
+ * - usbi3c_init()
+ * - usbi3c_initialize_device()
+ * - usbi3c_on_bus_error()
+ * - usbi3c_on_controller_event()
+ * - usbi3c_on_hotjoin()
+ * - usbi3c_on_ibi()
+ * - usbi3c_on_vendor_specific_response()
+ * - usbi3c_request_i3c_controller_role()
+ * - usbi3c_send_commands()
+ * - usbi3c_set_i3c_mode()
+ * - usbi3c_set_request_reattempt_max()
+ * - usbi3c_set_target_device_config()
+ * - usbi3c_set_target_device_max_ibi_payload()
+ * - usbi3c_set_timeout()
+ * - usbi3c_submit_commands()
+ * - usbi3c_submit_vendor_specific_request()
+ *
+ * @section Structures
+ * - usbi3c_ibi
+ * - usbi3c_response
+ * - usbi3c_target_device
+ * - usbi3c_version_info
+ *
+ * @section Enums
+ * - @ref usbi3c_address_change_status
+ * - @ref usbi3c_command_direction
+ * - @ref usbi3c_command_error_handling
+ * - @ref usbi3c_controller_event_code
+ * - @ref usbi3c_response
+ * - @ref usbi3c_version_info
+ ***************************************************************************/
+
+
+
+/* GROUPS */
+
+/**
+ * @defgroup library_setup Library Setup Functions
+ *
+ * This page provide details of the functions and data structures that are used
+ * to set up the @lib_name library. For more information about the setup and
+ * initialization process please refer to the @ref library_setup_page page.
+ */
+
+/**
+ * @defgroup command_execution Command Execution Functions
+ *
+ * This page provide details of the functions and data structures that are used
+ * to communicate with the I3C device using commands. For more information about
+ * how to communicate with the I3C device please refer to the @ref command_execution_page
+ * page.
+ */
+
+/**
+ * @defgroup bus_configuration I3C Bus Configuration Functions
+ *
+ * This page provide details of the functions and data structures that are used
+ * to configure the I3C bus. For more information about how to configure the I3C
+ * bus please refer to the @ref bus_configuration_page page.
+ *
+ * @note Bus configuration can also be accomplished via MIPI-defined CCCs. Please
+ * refer to the @ref command_execution_page page for more information about this.
+ */
+
+/**
+ * @defgroup bus_info I3C Bus Information Functions
+ *
+ * This page provide details of the functions and data structures that are used
+ * to get information about the I3C bus, or the I3C target devices on it. For more
+ * information about how to collect this information please refer to the @ref bus_info_page
+ * page.
+ */
+
+/**
+ * @defgroup error_handling Error Handling Functions
+ *
+ * This page provide details of the functions and data structures that are used
+ * to get information about errors while using the library and to handle them.
+ * For more information about this topic please refer to the @ref error_handling_page
+ * page.
+ */
+
+ /**
+  * @defgroup usbi3c_target_device USBI3C Function with target device role
+  *
+  * This page provide details of the functions and structures that are used
+  * to work with an USBI3C device when it has the I3C target device, or I3C target
+  * device capable of secondary controller roles.
+  */

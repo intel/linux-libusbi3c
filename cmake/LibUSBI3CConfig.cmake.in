@@ -1,0 +1,49 @@
+#                                               -*- cmake -*-
+#
+#  LibUSBI3CConfig.cmake(.in)
+#
+#  Copyright (C) 2021 Intel Corporation
+#
+#  This file is part of LibUSBI3C.
+#
+#  LibUSBI3C is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU Lesser General Public License
+#  version 2.1 as published by the Free Software Foundation;
+#
+
+# Use the following variables to compile and link against LibUSBI3C:
+#  LIBUSBI3C_FOUND              - True if LibUSBI3C was found on your system
+#  LIBUSBI3C_USE_FILE           - The file making LibUSBI3C usable
+#  LIBUSBI3C_DEFINITIONS        - Definitions needed to build with LibUSBI3C
+#  LIBUSBI3C_INCLUDE_DIRS       - Directory where usbi3c.h can be found
+#  LIBUSBI3C_INCLUDE_DIRS       - List of directories of LibUSBI3C and it's dependencies
+#  LIBUSBI3C_LIBRARY            - LibUSBI3C library location
+#  LIBUSBI3C_LIBRARIES          - List of libraries to link against LibUSBI3C library
+#  LIBUSBI3C_LIBRARY_DIRS       - List of directories containing LibUSBI3C' libraries
+#  LIBUSBI3C_ROOT_DIR           - The base directory of LibUSBI3C
+#  LIBUSBI3C_VERSION_STRING     - A human-readable string containing the version
+#  LIBUSBI3C_VERSION_MAJOR      - The major version of LibUSBI3C
+#  LIBUSBI3C_VERSION_MINOR      - The minor version of LibUSBI3C
+#  LIBUSBI3C_VERSION_PATCH      - The patch version of LibUSBI3C
+#  LIBUSBI3C_PYTHON_MODULE_PATH - Path to the python module
+
+set ( LIBUSBI3C_FOUND 1 )
+set ( LIBUSBI3C_USE_FILE     "@LIBUSBI3C_USE_FILE@" )
+
+set ( LIBUSBI3C_DEFINITIONS  "@LIBUSBI3C_DEFINITIONS@" )
+set ( LIBUSBI3C_INCLUDE_DIR  "@LIBUSBI3C_INCLUDE_DIR@" )
+set ( LIBUSBI3C_INCLUDE_DIRS "@LIBUSBI3C_INCLUDE_DIRS@" )
+set ( LIBUSBI3C_LIBRARY      "@LIBUSBI3C_LIBRARY@" )
+set ( LIBUSBI3C_LIBRARIES    "@LIBUSBI3C_LIBRARIES@" )
+set ( LIBUSBI3C_STATIC_LIBRARY      "@LIBUSBI3C_STATIC_LIBRARY@" )
+set ( LIBUSBI3C_STATIC_LIBRARIES    "@LIBUSBI3C_STATIC_LIBRARIES@" )
+set ( LIBUSBI3C_LIBRARY_DIRS "@LIBUSBI3C_LIBRARY_DIRS@" )
+set ( LIBUSBI3C_ROOT_DIR     "@LIBUSBI3C_ROOT_DIR@" )
+
+set ( LIBUSBI3C_VERSION_STRING "@LIBUSBI3C_VERSION_STRING@" )
+set ( LIBUSBI3C_VERSION_MAJOR  "@LIBUSBI3C_VERSION_MAJOR@" )
+set ( LIBUSBI3C_VERSION_MINOR  "@LIBUSBI3C_VERSION_MINOR@" )
+set ( LIBUSBI3C_VERSION_PATCH  "@LIBUSBI3C_VERSION_PATCH@" )
+
+set ( LIBUSBI3C_PYTHON_MODULE_PATH "@LIBUSBI3C_PYTHON_MODULE_PATH@" )
+

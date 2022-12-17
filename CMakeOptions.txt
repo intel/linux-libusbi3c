@@ -1,0 +1,7 @@
+
+# User selectable options for the build
+option(STATICLIBS "Build static libraries" ON)
+option(BUILD_TESTS "Build unit tests with Boost Unit Test framework" OFF)
+option(BUILD_SAMPLES "Build app samples" OFF)
+option(DOCUMENTATION "Generate API documentation with Doxygen" OFF)
+option(COVERAGE "Build with test coverage" OFF)

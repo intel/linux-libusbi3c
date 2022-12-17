@@ -1,0 +1,14 @@
+name: 'USB I3C* Library for Linux* OS Builder'
+description: 'Builds and test the USB I3C* Library for Linux* OS'
+inputs:
+  path:
+    description: 'Directory in the GitHub workspace where the source files can be found'
+    required: true
+  coverage_threshold:
+    description: 'The minimum unit test coverage percentage that is acceptable for the project'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - run: ${{ github.action_path }}/run_unit_test.sh ${{ inputs.path }} ${{ inputs.coverage_threshold }}
+      shell: bash
