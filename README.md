@@ -57,4 +57,4 @@ The **USB I3C\* Library for Linux\* OS** is looking for maintainers and welcomes
 
 ## Reporting Problems
 
-Use the [GitHub issue tracker](https://github.com/intel-innersource/libraries.debugging.i3c.libusbi3c/issues) to report bugs, issues and feature requests.
+Use the [GitHub issue tracker](https://github.com/intel/linux-libusbi3c/issues) to report bugs, issues and feature requests.
